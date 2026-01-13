@@ -1,15 +1,14 @@
-import asyncio
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, executor
 from config import BOT_TOKEN
 
+from handlers import start, menu, game
 
-async def main():
-    bot = Bot(token=BOT_TOKEN)
-    dp = Dispatcher()
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher(bot)
 
-    print("Бот запущен")
-    await dp.start_polling(bot)
-
+start.register(dp)
+menu.register(dp)
+game.register(dp)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    executor.start_polling(dp, skip_updates=True)
