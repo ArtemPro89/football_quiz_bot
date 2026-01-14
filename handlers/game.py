@@ -1,89 +1,97 @@
 import json
 import random
-from aiogram import types, Dispatcher
-from keyboards.game import answers_keyboard
-from keyboards.menu import main_menu
+import time
 
-QUESTIONS_FILE = "data/questions.json"
-USERS_FILE = "data/users.json"
+from aiogram import Router, F
+from aiogram.types import Message, CallbackQuery
 
-games = {}
+from keyboards.game import question_keyboard
 
+router = Router()
 
-def load_questions():
-    with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+# Активные игры пользователей
+user_games = {}
 
 
-def load_users():
-    with open(USERS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+@router.message(F.text == "▶️ Начать игру")
+async def start_game(message: Message):
+    with open("data/questions.json", encoding="utf-8") as f:
+        questions = json.load(f)
 
+    random.shuffle(questions)
 
-def save_users(users):
-    with open(USERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(users, f, ensure_ascii=False, indent=2)
-
-
-async def start_game(message: types.Message):
-    questions = load_questions()
-    selected = random.sample(questions, 20)
-
-    games[message.from_user.id] = {
-        "questions": selected,
+    user_games[message.from_user.id] = {
+        "questions": questions[:20],   # 20 вопросов
         "current": 0,
-        "score": 0
+        "score": 0,
+        "start_time": time.time()
     }
 
     await send_question(message.from_user.id, message)
 
 
-async def send_question(user_id, message):
-    game = games[user_id]
+async def send_question(user_id: int, message: Message):
+    game = user_games[user_id]
     q = game["questions"][game["current"]]
 
     await message.answer(
-        f"Вопрос {game['current'] + 1}/20\n\n{q['question']}",
-        reply_markup=answers_keyboard(q["options"])
+        f"❓ *Вопрос {game['current'] + 1}/20*\n\n"
+        f"{q['question']}",
+        reply_markup=question_keyboard(q),
+        parse_mode="Markdown"
     )
 
 
-async def answer_handler(callback: types.CallbackQuery):
+@router.callback_query()
+async def answer(callback: CallbackQuery):
     user_id = callback.from_user.id
-    game = games[user_id]
+
+    if user_id not in user_games:
+        await callback.answer("Игра не найдена", show_alert=True)
+        return
+
+    game = user_games[user_id]
     q = game["questions"][game["current"]]
 
     if int(callback.data) == q["answer"]:
         game["score"] += 1
+        await callback.message.answer("✅ Верно!")
+    else:
+        await callback.message.answer("❌ Неверно!")
 
     game["current"] += 1
 
-    if game["current"] < 20:
-        await send_question(user_id, callback.message)
+    if game["current"] >= len(game["questions"]):
+        await finish_game(callback)
     else:
-        await finish_game(callback.message, user_id)
+        await send_question(user_id, callback.message)
 
     await callback.answer()
 
 
-async def finish_game(message, user_id):
-    users = load_users()
-    user = users[str(user_id)]
-    score = games[user_id]["score"]
+async def finish_game(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    game = user_games[user_id]
 
-    if score > user["best_score"]:
-        user["best_score"] = score
-        save_users(users)
+    score = game["score"]
+    total = len(game["questions"])
 
-    await message.answer(
-        f"🎉 Игра окончена!\n"
-        f"Ваш результат: {score}/20",
-        reply_markup=main_menu()
+    elapsed = int(time.time() - game["start_time"])
+    minutes = elapsed // 60
+    seconds = elapsed % 60
+
+    with open("data/users.json", "r+", encoding="utf-8") as f:
+        users = json.load(f)
+        users[str(user_id)]["score"] += score
+        f.seek(0)
+        json.dump(users, f, ensure_ascii=False, indent=2)
+        f.truncate()
+
+    await callback.message.answer(
+        "🏁 *Игра окончена!*\n\n"
+        f"🎯 Результат: *{score} / {total}*\n"
+        f"⏱ Время: *{minutes} мин {seconds} сек*",
+        parse_mode="Markdown"
     )
 
-    del games[user_id]
-
-
-def register(dp: Dispatcher):
-    dp.register_message_handler(start_game, text="▶️ Начать игру")
-    dp.register_callback_query_handler(answer_handler)
+    del user_games[user_id]

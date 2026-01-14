@@ -1,13 +1,15 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
-def answers_keyboard(options):
-    keyboard = InlineKeyboardMarkup()
-    for i, option in enumerate(options):
-        keyboard.add(
+def question_keyboard(question: dict):
+    buttons = []
+
+    for i, option in enumerate(question["options"]):
+        buttons.append([
             InlineKeyboardButton(
                 text=option,
                 callback_data=str(i)
             )
-        )
-    return keyboard
+        ])
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)

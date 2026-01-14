@@ -1,14 +1,27 @@
-from aiogram import Bot, Dispatcher, executor
+import asyncio
+import logging
+
+from aiogram import Bot, Dispatcher
+
 from config import BOT_TOKEN
+from handlers.start import router as start_router
+from handlers.menu import router as menu_router
+from handlers.game import router as game_router
 
-from handlers import start, menu, game
 
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
+async def main():
+    logging.basicConfig(level=logging.INFO)
 
-start.register(dp)
-menu.register(dp)
-game.register(dp)
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher()
+
+    dp.include_router(start_router)
+    dp.include_router(menu_router)
+    dp.include_router(game_router)
+
+    logging.info("🚀 Бот запущен")
+    await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    asyncio.run(main())

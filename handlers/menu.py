@@ -1,40 +1,40 @@
+from aiogram import Router, F
+from aiogram.types import Message
 import json
-from aiogram import types, Dispatcher
-from keyboards.menu import main_menu
 
-USERS_FILE = "data/users.json"
+router = Router()
 
 
-def load_users():
-    with open(USERS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+@router.message(F.text == "🏆 Рейтинг")
+async def rating(message: Message):
+    with open("data/users.json", encoding="utf-8") as f:
+        users = json.load(f)
+
+    top = sorted(users.values(), key=lambda x: x["score"], reverse=True)[:10]
+
+    text = "🏆 ТОП-10 игроков:\n\n"
+    for i, user in enumerate(top, start=1):
+        text += f"{i}. {user['name']} — {user['score']}\n"
+
+    await message.answer(text)
 
 
-async def rating_handler(message: types.Message):
-    users = load_users()
-
-    sorted_users = sorted(
-        users.values(),
-        key=lambda x: x["best_score"],
-        reverse=True
-    )[:10]
-
-    text = "🏆 ТОП-10 Рейтинг:\n\n"
-    for i, user in enumerate(sorted_users, 1):
-        text += f"{i}. {user['name']} — {user['best_score']} очков\n"
-
-    await message.answer(text, reply_markup=main_menu())
-
-
-async def about_handler(message: types.Message):
+@router.message(F.text == "ℹ️ О викторине")
+async def about_quiz(message: Message):
     await message.answer(
-        "⚽ Футбольная викторина\n"
-        "20 вопросов — 1 попытка\n"
-        "В рейтинг попадает лучший результат",
-        reply_markup=main_menu()
+        "⚽ *Футбольная викторина*\n\n"
+        "• 10 случайных вопросов\n"
+        "• 1 балл за каждый правильный ответ\n"
+        "• Попади в ТОП-10 рейтинга\n\n"
+        "Удачи! 🍀",
+        parse_mode="Markdown"
     )
 
 
-def register(dp: Dispatcher):
-    dp.register_message_handler(rating_handler, text="🏆 Рейтинг")
-    dp.register_message_handler(about_handler, text="ℹ️ О викторине")
+@router.message(F.text == "⚔️ Игра 1 на 1")
+async def duel(message: Message):
+    await message.answer(
+        "⚔️ Режим *1 на 1* скоро будет доступен!\n\n"
+        "Мы уже работаем над ним 👨‍💻",
+        parse_mode="Markdown"
+    )

@@ -1,53 +1,52 @@
-import json
-from aiogram import types, Dispatcher
+from aiogram import Router, F
+from aiogram.types import Message
 from keyboards.menu import main_menu
+import json
 
-USERS_FILE = "data/users.json"
+router = Router()
 
+waiting_for_name = set()
 
-def load_users():
-    with open(USERS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_users(users):
-    with open(USERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(users, f, ensure_ascii=False, indent=2)
-
-
-async def start_handler(message: types.Message):
-    users = load_users()
-    user_id = str(message.from_user.id)
-
-    if user_id in users:
-        await message.answer(
-            f"С возвращением, {users[user_id]['name']}!",
-            reply_markup=main_menu()
-        )
-    else:
-        await message.answer("Привет! Введи свой никнейм 👇")
+MENU_BUTTONS = {
+    "▶️ Начать игру",
+    "⚔️ Игра 1 на 1",
+    "🏆 Рейтинг",
+    "ℹ️ О викторине",
+}
 
 
-async def name_handler(message: types.Message):
-    users = load_users()
-    user_id = str(message.from_user.id)
+@router.message(F.text == "/start")
+async def start_cmd(message: Message):
+    waiting_for_name.add(message.from_user.id)
+    await message.answer("👋 Привет! Введи своё имя:")
 
-    if user_id in users:
+
+@router.message(
+    F.text
+    & ~F.text.in_(MENU_BUTTONS)   # ❗ НЕ кнопки меню
+)
+async def get_name(message: Message):
+    user_id = message.from_user.id
+
+    # если имя не ждём — игнор
+    if user_id not in waiting_for_name:
         return
 
-    users[user_id] = {
-        "name": message.text,
-        "best_score": 0
-    }
+    name = message.text.strip()
 
-    save_users(users)
+    with open("data/users.json", "r+", encoding="utf-8") as f:
+        users = json.load(f)
+        users[str(user_id)] = {
+            "name": name,
+            "score": 0
+        }
+        f.seek(0)
+        json.dump(users, f, ensure_ascii=False, indent=2)
+        f.truncate()
+
+    waiting_for_name.remove(user_id)
 
     await message.answer(
-        f"Отлично, {message.text}! Добро пожаловать в викторину ⚽",
+        f"✅ Отлично, {name}!",
         reply_markup=main_menu()
     )
-
-
-def register(dp: Dispatcher):
-    dp.register_message_handler(start_handler, commands=["start"])
-    dp.register_message_handler(name_handler)
